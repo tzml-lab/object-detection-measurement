@@ -2,6 +2,7 @@ from train import *
 import cv2
 import glob
 import time
+import requests
 WEIGHTS_FILE = "ruler.h5"
 THRESHOLD = 0.99
 EPSILON = 0.08
@@ -16,6 +17,7 @@ def main():
     y1 = 1
     while True:
         ret, frame = cap.read()
+        #cv2.imwrite("output.png", frame)
         unscaled = frame
         image = cv2.resize(unscaled, (IMAGE_SIZE, IMAGE_SIZE))
         feat_scaled = preprocess_input(np.array(image, dtype=np.float32))
@@ -25,7 +27,7 @@ def main():
         output = np.zeros(region.shape, dtype=np.uint8)
         output[region > THRESHOLD] = 1
 
-        contours, _ = cv2.findContours(output, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        __,contours, _ = cv2.findContours(output, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         if(len(contours) > 0):
             cnt = max(contours, key=cv2.contourArea)
             approx = cv2.approxPolyDP(cnt, EPSILON * cv2.arcLength(cnt, True), True)
@@ -36,13 +38,14 @@ def main():
             y0 = np.rint(y * unscaled.shape[0] / output.shape[0]).astype(int)
             y1 = np.rint((y + h) * unscaled.shape[0] / output.shape[0]).astype(int)
             cv2.rectangle(unscaled, (x0, y0), (x1, y1), (0, 255, 0), 3)
+            
             print("Ruler size -> Width:", x1-x0, "Height:", y1-y0)
 
         imggray = cv2.cvtColor(frame, cv2.COLOR_BGR2HLS)
         lower=np.array([35,30,5])
         upper=np.array([70,255,250])
         mask = cv2.inRange(imggray, lower, upper)
-        contours, hierarchy =cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        ___, contours, hierarchy =cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         C=max(contours, key=cv2.contourArea)
         x, y, w, h = cv2.boundingRect(C)#計算邊界框座標
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0,255,0), 2)
@@ -52,8 +55,16 @@ def main():
         cv2.drawContours(unscaled, [box], 0, (0,0,255),1)
         print("Object size -> Width:", w, "Height:", h)
         if x1-x0 != 0 and y1-y0 != 0:
-            print("Real object size = ", 5*w/(x1-x0), "cm", 5*h/(y1-y0), "cm")
+            #print("Real object = ", 5*w/(x1-x0), "cm", 5*h/(y1-y0), "cm")
+            font = ""
+            cv2.putText(unscaled, str(5*h/(y1-y0))+" cm", (x0, y0), cv2.FONT_HERSHEY_SIMPLEX,1, (0, 255,0), 1, cv2.LINE_AA)
+            print("Real object height = ", 5*h/(y1-y0), "cm")
+        #files = {"upload_file":open("output.png", "rb")}
+        #data = {"height":5*h/(y1-y0)}
+        #s = requests.post("https://kaibao.tzml-lab.tw/api/uploadImg", files=files, data=data, verify=False)
         cv2.imshow("image", unscaled)
+        #time.sleep(10)
+        #break
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
     # cv2.waitKey(0)
